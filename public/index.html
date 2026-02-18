@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Work - Cadastro de Candidatos</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        
+        .header p { color: #94a3b8; }
+        
+        .form-container {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 32px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 4px;
+        }
+        
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+        
+        .form-group label .required {
+            color: #ef4444;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+        
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        
+        .skill-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .skill-checkbox:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .skill-checkbox input {
+            width: auto;
+        }
+        
+        .skill-checkbox span {
+            font-size: 0.875rem;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            margin-top: 24px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .message {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+            display: block;
+        }
+        
+        .message.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            display: block;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚛️ Quantum Work</h1>
+            <p>Cadastre-se para oportunidades de trabalho remoto</p>
+        </div>
+
+        <div class="form-container">
+            <div id="message" class="message"></div>
+            
+            <form id="candidateForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nome Completo <span class="required">*</span></label>
+                        <input type="text" name="full_name" required placeholder="Seu nome completo">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Email <span class="required">*</span></label>
+                        <input type="email" name="email" required placeholder="seu@email.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Telefone / WhatsApp</label>
+                        <input type="tel" name="phone" placeholder="+55 (11) 99999-9999">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Localização</label>
+                        <input type="text" name="location" placeholder="Cidade, Estado, País">
+                    </div>
+
+                    <div class="form-group">
+                        <label>LinkedIn</label>
+                        <input type="url" name="linkedin" placeholder="https://linkedin.com/in/seu-perfil">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Portfolio / Website</label>
+                        <input type="url" name="portfolio" placeholder="https://seu-portfolio.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nível de Experiência</label>
+                        <select name="experience_level">
+                            <option value="">Selecione...</option>
+                            <option value="junior">Júnior (0-2 anos)</option>
+                            <option value="mid-level">Pleno (2-5 anos)</option>
+                            <option value="senior">Sênior (5+ anos)</option>
+                            <option value="lead">Lead / Manager</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Cargo Atual</label>
+                        <input type="text" name="current_role" placeholder="Ex: Desenvolvedor Frontend">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nível de Inglês</label>
+                        <select name="english_level">
+                            <option value="">Selecione...</option>
+                            <option value="basic">Básico</option>
+                            <option value="intermediate">Intermediário</option>
+                            <option value="advanced">Avançado</option>
+                            <option value="fluent">Fluente / Nativo</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Disponibilidade</label>
+                        <select name="availability">
+                            <option value="">Selecione...</option>
+                            <option value="immediate">Imediata</option>
+                            <option value="2-weeks">2 semanas</option>
+                            <option value="1-month">1 mês</option>
+                            <option value="negotiable">A negociar</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pretensão Salarial (mensal)</label>
+                        <input type="text" name="salary_expectation" placeholder="Ex: R$ 8.000 - 12.000">
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="remote_experience" value="1" style="width: auto; margin-right: 8px;">
+                            Tenho experiência com trabalho remoto
+                        </label>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Skills <span class="required">*</span></label>
+                        <div class="skills-grid" id="skillsContainer">
+                            <!-- Skills geradas via JS -->
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Cargos de Interesse</label>
+                        <div class="skills-grid" id="rolesContainer">
+                            <!-- Roles geradas via JS -->
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Mini Bio / Resumo Profissional</label>
+                        <textarea name="bio" placeholder="Conte um pouco sobre sua experiência, conquistas e o que busca na carreira..."></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    <span id="btnText">Cadastrar Perfil</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        
+        const skills = [
+            'JavaScript', 'TypeScript', 'Python', 'Java', 'PHP', 'Ruby', 'Go', 'Rust',
+            'React', 'Vue', 'Angular', 'Next.js', 'Node.js', 'Express',
+            'HTML/CSS', 'Tailwind', 'SASS', 'Bootstrap',
+            'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Firebase',
+            'AWS', 'Docker', 'Kubernetes', 'CI/CD', 'Git',
+            'Figma', 'Adobe XD', 'UI/UX', 'Design System',
+            'Product Management', 'Agile', 'Scrum', 'Jira',
+            'Marketing Digital', 'SEO', 'Content', 'Social Media',
+            'Sales', 'Business Dev', 'Customer Success', 'Support'
+        ];
+
+        const roles = [
+            'Frontend Developer', 'Backend Developer', 'Full Stack Developer',
+            'Mobile Developer', 'DevOps Engineer', 'Data Engineer',
+            'Product Designer', 'UX Designer', 'UI Designer',
+            'Product Manager', 'Project Manager', 'Scrum Master',
+            'Data Analyst', 'Data Scientist', 'ML Engineer',
+            'QA Engineer', 'Security Engineer', 'Site Reliability',
+            'Tech Lead', 'Engineering Manager', 'CTO',
+            'Marketing Manager', 'Growth Hacker', 'Content Writer',
+            'Sales Representative', 'Account Executive', 'Customer Success'
+        ];
+
+        // Render skills
+        const skillsContainer = document.getElementById('skillsContainer');
+        skills.forEach(skill => {
+            const div = document.createElement('label');
+            div.className = 'skill-checkbox';
+            div.innerHTML = `
+                <input type="checkbox" name="skills" value="${skill}">
+                <span>${skill}</span>
+            `;
+            skillsContainer.appendChild(div);
+        });
+
+        // Render roles
+        const rolesContainer = document.getElementById('rolesContainer');
+        roles.forEach(role => {
+            const div = document.createElement('label');
+            div.className = 'skill-checkbox';
+            div.innerHTML = `
+                <input type="checkbox" name="desired_roles" value="${role}">
+                <span>${role}</span>
+            `;
+            rolesContainer.appendChild(div);
+        });
+
+        // Form submission
+        document.getElementById('candidateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.querySelector('.submit-btn');
+            const btnText = document.getElementById('btnText');
+            const msg = document.getElementById('message');
+            
+            btn.disabled = true;
+            btnText.innerHTML = 'Enviando... <span class="loading"></span>';
+            msg.className = 'message';
+            msg.style.display = 'none';
+            
+            // Collect form data
+            const formData = new FormData(e.target);
+            const data = {
+                full_name: formData.get('full_name'),
+                email: formData.get('email'),
+                phone: formData.get('phone'),
+                location: formData.get('location'),
+                linkedin: formData.get('linkedin'),
+                portfolio: formData.get('portfolio'),
+                experience_level: formData.get('experience_level'),
+                current_role: formData.get('current_role'),
+                skills: formData.getAll('skills'),
+                desired_roles: formData.getAll('desired_roles'),
+                salary_expectation: formData.get('salary_expectation'),
+                availability: formData.get('availability'),
+                english_level: formData.get('english_level'),
+                remote_experience: formData.get('remote_experience') === '1',
+                bio: formData.get('bio')
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/candidates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    msg.className = 'message success';
+                    msg.textContent = '✅ Cadastro realizado com sucesso! Entraremos em contato com oportunidades.';
+                    e.target.reset();
+                } else if (response.status === 409) {
+                    msg.className = 'message error';
+                    msg.textContent = '⚠️ Este email já está cadastrado em nossa base.';
+                } else {
+                    throw new Error(result.error || 'Erro ao cadastrar');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                
+                // Fallback: salvar no localStorage
+                let candidates = JSON.parse(localStorage.getItem('qw_candidates') || '[]');
+                data.id = Date.now();
+                data.created_at = new Date().toISOString();
+                candidates.push(data);
+                localStorage.setItem('qw_candidates', JSON.stringify(candidates));
+                
+                msg.className = 'message success';
+                msg.innerHTML = '✅ Cadastro salvo localmente! <br><small>O servidor está offline, mas seus dados foram salvos.</small>';
+                e.target.reset();
+            }
+            
+            btn.disabled = false;
+            btnText.textContent = 'Cadastrar Perfil';
+        });
+    </script>
+</body>
+</html>
