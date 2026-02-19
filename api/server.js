@@ -15,6 +15,17 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
 
+// Middleware para garantir que o banco está inicializado
+app.use(async (req, res, next) => {
+    try {
+        await initDatabase();
+        next();
+    } catch (err) {
+        console.error('❌ Erro ao inicializar banco:', err.message);
+        res.status(500).json({ success: false, error: 'Database initialization failed' });
+    }
+});
+
 // ============ CANDIDATES API ============
 
 // Criar candidato
