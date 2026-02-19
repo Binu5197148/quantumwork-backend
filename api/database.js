@@ -1,54 +1,79 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const initSqlJs = require('sql.js');
 const fs = require('fs');
+const path = require('path');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'quantumwork.db');
 
-// Garantir que o diretório data existe
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Conexão com o banco (síncrona no better-sqlite3)
 let db;
-try {
-    db = new Database(DB_PATH);
-    console.log('✅ Conectado ao SQLite em:', DB_PATH);
-} catch (err) {
-    console.error('❌ Erro ao conectar ao SQLite:', err.message);
-    process.exit(1);
-}
+let SQL;
 
-// Inicializar banco de dados
-function initDatabase() {
+// Inicializar SQL.js
+async function initDatabase() {
     try {
-        const schemaPath = path.join(__dirname, 'schema.sql');
-        const schema = fs.readFileSync(schemaPath, 'utf8');
+        SQL = await initSqlJs();
         
-        const statements = schema.split(';').filter(s => s.trim());
-        
-        statements.forEach(statement => {
-            if (statement.trim()) {
-                try {
-                    db.exec(statement + ';');
-                } catch (err) {
-                    console.error('❌ Erro ao executar schema:', err.message);
-                }
+        // Verificar se existe arquivo de banco
+        if (fs.existsSync(DB_PATH)) {
+            const filebuffer = fs.readFileSync(DB_PATH);
+            db = new SQL.Database(filebuffer);
+            console.log('✅ Banco de dados carregado de:', DB_PATH);
+        } else {
+            db = new SQL.Database();
+            console.log('✅ Novo banco de dados criado');
+            
+            // Criar schema
+            const schemaPath = path.join(__dirname, 'schema.sql');
+            if (fs.existsSync(schemaPath)) {
+                const schema = fs.readFileSync(schemaPath, 'utf8');
+                const statements = schema.split(';').filter(s => s.trim());
+                
+                statements.forEach(statement => {
+                    if (statement.trim()) {
+                        try {
+                            db.run(statement + ';');
+                        } catch (err) {
+                            console.error('❌ Erro ao executar schema:', err.message);
+                        }
+                    }
+                });
             }
-        });
+            
+            // Salvar banco inicial
+            saveDatabase();
+        }
         
         console.log('✅ Banco de dados inicializado!');
     } catch (err) {
         console.error('❌ Erro ao inicializar banco:', err.message);
+        throw err;
     }
 }
 
-// Funções síncronas do better-sqlite3
+// Salvar banco em disco
+function saveDatabase() {
+    if (!db) return;
+    
+    try {
+        const dataDir = path.dirname(DB_PATH);
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        
+        const data = db.export();
+        fs.writeFileSync(DB_PATH, Buffer.from(data));
+    } catch (err) {
+        console.error('❌ Erro ao salvar banco:', err.message);
+    }
+}
+
+// Funções de query
 function run(sql, params = []) {
+    if (!db) throw new Error('Database not initialized');
+    
     try {
         const stmt = db.prepare(sql);
-        const result = stmt.run(...params);
+        const result = stmt.run(params);
+        saveDatabase();
         return { id: result.lastInsertRowid, changes: result.changes };
     } catch (err) {
         throw err;
@@ -56,25 +81,31 @@ function run(sql, params = []) {
 }
 
 function get(sql, params = []) {
+    if (!db) throw new Error('Database not initialized');
+    
     try {
         const stmt = db.prepare(sql);
-        return stmt.get(...params);
+        const result = stmt.get(params);
+        return result;
     } catch (err) {
         throw err;
     }
 }
 
 function all(sql, params = []) {
+    if (!db) throw new Error('Database not initialized');
+    
     try {
         const stmt = db.prepare(sql);
-        return stmt.all(...params);
+        const results = stmt.all(params);
+        return results;
     } catch (err) {
         throw err;
     }
 }
 
 module.exports = {
-    db,
+    db: { run, get, all },
     initDatabase,
     run,
     get,

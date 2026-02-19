@@ -462,14 +462,24 @@ app.post('/api/jobs', async (req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Quantum Work API rodando na porta ${PORT}`);
-    console.log(`📊 Admin: http://localhost:${PORT}/admin/`);
-    console.log(`📧 Email: Configurado`);
-    console.log(`💼 Jobs: API disponível`);
-    
-    // Inicializar banco
-    initDatabase();
-});
+async function startServer() {
+    try {
+        // Inicializar banco primeiro
+        await initDatabase();
+        console.log('✅ Banco de dados pronto');
+        
+        app.listen(PORT, () => {
+            console.log(`🚀 Quantum Work API rodando na porta ${PORT}`);
+            console.log(`📊 Admin: http://localhost:${PORT}/admin/`);
+            console.log(`📧 Email: Configurado`);
+            console.log(`💼 Jobs: API disponível`);
+        });
+    } catch (err) {
+        console.error('❌ Erro ao iniciar servidor:', err.message);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 module.exports = app;
