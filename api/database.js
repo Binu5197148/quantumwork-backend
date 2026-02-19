@@ -2,11 +2,64 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = process.env.DB_PATH || path.join('/tmp', 'quantumwork.db');
+// No Render, usar /tmp que é writable, ou apenas memória
+const DB_PATH = process.env.DB_PATH || '/tmp/quantumwork.db';
 
 let db;
 let SQL;
 let isInitialized = false;
+
+// Schema SQL inline (para garantir que existe)
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    phone TEXT,
+    location TEXT,
+    linkedin TEXT,
+    portfolio TEXT,
+    experience_level TEXT,
+    current_role TEXT,
+    skills TEXT,
+    desired_roles TEXT,
+    salary_expectation TEXT,
+    availability TEXT,
+    english_level TEXT,
+    remote_experience INTEGER DEFAULT 0,
+    bio TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    company TEXT NOT NULL,
+    description TEXT,
+    requirements TEXT,
+    salary TEXT,
+    location TEXT,
+    type TEXT,
+    source TEXT,
+    source_url TEXT,
+    skills_required TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    candidate_id INTEGER,
+    job_id INTEGER,
+    score REAL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (candidate_id) REFERENCES candidates(id),
+    FOREIGN KEY (job_id) REFERENCES jobs(id)
+);
+`;
 
 // Inicializar SQL.js
 async function initDatabase() {
@@ -14,51 +67,56 @@ async function initDatabase() {
     
     try {
         console.log('🔄 Inicializando banco de dados...');
-        console.log('📁 Caminho do DB:', DB_PATH);
         
         SQL = await initSqlJs();
         console.log('✅ SQL.js carregado');
         
-        // Verificar se existe arquivo de banco
+        // Tentar carregar do disco primeiro
+        let loadedFromDisk = false;
         if (fs.existsSync(DB_PATH)) {
-            const filebuffer = fs.readFileSync(DB_PATH);
-            db = new SQL.Database(filebuffer);
-            console.log('✅ Banco de dados carregado de:', DB_PATH);
-        } else {
-            db = new SQL.Database();
-            console.log('✅ Novo banco de dados criado na memória');
-            
-            // Criar schema
-            const schemaPath = path.join(__dirname, 'schema.sql');
-            if (fs.existsSync(schemaPath)) {
-                const schema = fs.readFileSync(schemaPath, 'utf8');
-                const statements = schema.split(';').filter(s => s.trim());
-                
-                statements.forEach(statement => {
-                    if (statement.trim()) {
-                        try {
-                            db.run(statement + ';');
-                        } catch (err) {
-                            console.error('❌ Erro ao executar schema:', err.message);
-                        }
-                    }
-                });
+            try {
+                const filebuffer = fs.readFileSync(DB_PATH);
+                db = new SQL.Database(filebuffer);
+                console.log('✅ Banco carregado de:', DB_PATH);
+                loadedFromDisk = true;
+            } catch (e) {
+                console.log('⚠️ Não foi possível carregar do disco, criando novo');
             }
+        }
+        
+        // Se não carregou do disco, criar novo
+        if (!loadedFromDisk) {
+            db = new SQL.Database();
+            console.log('✅ Novo banco criado na memória');
             
-            // Salvar banco inicial
-            saveDatabase();
+            // Executar schema
+            try {
+                db.exec(SCHEMA_SQL);
+                console.log('✅ Schema criado');
+                saveDatabase();
+            } catch (err) {
+                console.error('❌ Erro ao criar schema:', err.message);
+            }
         }
         
         isInitialized = true;
-        console.log('✅ Banco de dados inicializado com sucesso!');
+        console.log('✅ Banco de dados pronto!');
     } catch (err) {
-        console.error('❌ Erro ao inicializar banco:', err.message);
-        console.error(err.stack);
-        throw err;
+        console.error('❌ Erro fatal ao inicializar banco:', err.message);
+        // Criar banco em memória como fallback
+        try {
+            db = new SQL.Database();
+            db.exec(SCHEMA_SQL);
+            isInitialized = true;
+            console.log('✅ Banco em memória criado (fallback)');
+        } catch (e) {
+            console.error('❌ Falha total:', e.message);
+            throw e;
+        }
     }
 }
 
-// Salvar banco em disco
+// Salvar banco em disco (best effort)
 function saveDatabase() {
     if (!db) return;
     
@@ -70,16 +128,21 @@ function saveDatabase() {
         
         const data = db.export();
         fs.writeFileSync(DB_PATH, Buffer.from(data));
+        console.log('💾 Banco salvo em:', DB_PATH);
     } catch (err) {
-        console.error('❌ Erro ao salvar banco:', err.message);
+        console.log('⚠️ Não foi possível salvar no disco (modo memória):', err.message);
     }
 }
 
 // Funções de query
-async function run(sql, params = []) {
+async function ensureInitialized() {
     if (!isInitialized || !db) {
         await initDatabase();
     }
+}
+
+async function run(sql, params = []) {
+    await ensureInitialized();
     
     try {
         const stmt = db.prepare(sql);
@@ -87,14 +150,13 @@ async function run(sql, params = []) {
         saveDatabase();
         return { id: result.lastInsertRowid, changes: result.changes };
     } catch (err) {
+        console.error('❌ Erro na query run:', err.message);
         throw err;
     }
 }
 
 async function get(sql, params = []) {
-    if (!isInitialized || !db) {
-        await initDatabase();
-    }
+    await ensureInitialized();
     
     try {
         const stmt = db.prepare(sql);
@@ -107,15 +169,14 @@ async function get(sql, params = []) {
 }
 
 async function all(sql, params = []) {
-    if (!isInitialized || !db) {
-        await initDatabase();
-    }
+    await ensureInitialized();
     
     try {
         const stmt = db.prepare(sql);
         const results = stmt.all(params);
         return results;
     } catch (err) {
+        console.error('❌ Erro na query all:', err.message);
         throw err;
     }
 }
