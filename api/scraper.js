@@ -113,10 +113,11 @@ async function scrapeRemotive() {
  * Scraper do Jobicy (API pública)
  * https://jobicy.com/api/v2/remote-jobs
  */
-async function scrapeJobicy() {
+async function scrapeJobicy(geo = null) {
     try {
-        console.log('🔍 Scraping Jobicy...');
-        const data = await fetchJson('https://jobicy.com/api/v2/remote-jobs?count=20');
+        const geoParam = geo ? `&geo=${geo}` : '';
+        console.log(`🔍 Scraping Jobicy${geo ? ' (' + geo + ')' : ''}...`);
+        const data = await fetchJson(`https://jobicy.com/api/v2/remote-jobs?count=20${geoParam}`);
         const jobs = data.jobs || [];
 
         return jobs.map(job => ({
@@ -126,9 +127,9 @@ async function scrapeJobicy() {
             requirements: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
             skills_required: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
             salary: job.annualSalary || 'Not specified',
-            location: job.jobGeo || 'Remote',
+            location: job.jobGeo || geo || 'Remote',
             type: job.jobType || 'full-time',
-            source: 'Jobicy',
+            source: geo ? `Jobicy-${geo}` : 'Jobicy',
             source_url: job.url || 'https://jobicy.com'
         }));
     } catch (error) {
@@ -206,15 +207,88 @@ function getMockJobs() {
     return jobs;
 }
 
+// ============ SCRAPERS POR PAÍS ============
+
+/**
+ * Scraper de vagas nos EUA
+ */
+async function scrapeUSA() {
+    return scrapeJobicy('united-states');
+}
+
+/**
+ * Scraper de vagas na Índia
+ */
+async function scrapeIndia() {
+    return scrapeJobicy('india');
+}
+
+/**
+ * Scraper de vagas em Portugal
+ */
+async function scrapePortugal() {
+    return scrapeJobicy('portugal');
+}
+
+/**
+ * Scraper de vagas no Japão
+ */
+async function scrapeJapan() {
+    return scrapeJobicy('japan');
+}
+
+/**
+ * Scraper de vagas na Austrália
+ */
+async function scrapeAustralia() {
+    return scrapeJobicy('australia');
+}
+
+/**
+ * Scraper de vagas na Nova Zelândia
+ */
+async function scrapeNewZealand() {
+    return scrapeJobicy('new-zealand');
+}
+
+/**
+ * Scraper de vagas na Itália
+ */
+async function scrapeItaly() {
+    return scrapeJobicy('italy');
+}
+
+/**
+ * Scraper de vagas no Canadá
+ */
+async function scrapeCanada() {
+    return scrapeJobicy('canada');
+}
+
 // ============ FUNÇÕES PÚBLICAS ============
 
 /**
  * Executa todos os scrapers e retorna vagas combinadas
+ * 
+ * Opções:
+ * - useMock: usar dados mockados
+ * - filterByCountry: filtrar por país específico (usa Jobicy)
  */
-async function runAllScrapers(useMock = false) {
+async function runAllScrapers(useMock = false, filterByCountry = null) {
     if (useMock) {
         console.log('📦 Usando dados mockados');
         return getMockJobs();
+    }
+
+    // Se filtrar por país, usa só Jobicy com geo
+    if (filterByCountry) {
+        console.log(`🔍 Buscando vagas específicas para: ${filterByCountry}`);
+        const countryJobs = await scrapeJobicy(filterByCountry).catch(err => {
+            console.error(`❌ Erro ao buscar vagas para ${filterByCountry}:`, err.message);
+            return [];
+        });
+        console.log(`✅ ${countryJobs.length} vagas encontradas para ${filterByCountry}`);
+        return countryJobs;
     }
 
     const allJobs = [];
@@ -224,19 +298,43 @@ async function runAllScrapers(useMock = false) {
         remoteOKJobs, 
         remotiveJobs,
         jobicyJobs,
-        arbeitnowJobs
+        arbeitnowJobs,
+        usaJobs,
+        indiaJobs,
+        portugalJobs,
+        japanJobs,
+        australiaJobs,
+        newZealandJobs,
+        italyJobs,
+        canadaJobs
     ] = await Promise.all([
         scrapeRemoteOK().catch(err => { console.error('RemoteOK erro:', err.message); return []; }),
         scrapeRemotive().catch(err => { console.error('Remotive erro:', err.message); return []; }),
         scrapeJobicy().catch(err => { console.error('Jobicy erro:', err.message); return []; }),
-        scrapeArbeitnow().catch(err => { console.error('Arbeitnow erro:', err.message); return []; })
+        scrapeArbeitnow().catch(err => { console.error('Arbeitnow erro:', err.message); return []; }),
+        scrapeUSA().catch(err => { console.error('USA erro:', err.message); return []; }),
+        scrapeIndia().catch(err => { console.error('India erro:', err.message); return []; }),
+        scrapePortugal().catch(err => { console.error('Portugal erro:', err.message); return []; }),
+        scrapeJapan().catch(err => { console.error('Japan erro:', err.message); return []; }),
+        scrapeAustralia().catch(err => { console.error('Australia erro:', err.message); return []; }),
+        scrapeNewZealand().catch(err => { console.error('New Zealand erro:', err.message); return []; }),
+        scrapeItaly().catch(err => { console.error('Italy erro:', err.message); return []; }),
+        scrapeCanada().catch(err => { console.error('Canada erro:', err.message); return []; })
     ]);
 
     allJobs.push(
         ...remoteOKJobs, 
         ...remotiveJobs,
         ...jobicyJobs,
-        ...arbeitnowJobs
+        ...arbeitnowJobs,
+        ...usaJobs,
+        ...indiaJobs,
+        ...portugalJobs,
+        ...japanJobs,
+        ...australiaJobs,
+        ...newZealandJobs,
+        ...italyJobs,
+        ...canadaJobs
     );
 
     // Log de resultados por fonte
@@ -245,6 +343,14 @@ async function runAllScrapers(useMock = false) {
     console.log(`  Remotive: ${remotiveJobs.length} vagas`);
     console.log(`  Jobicy: ${jobicyJobs.length} vagas`);
     console.log(`  Arbeitnow: ${arbeitnowJobs.length} vagas`);
+    console.log(`  USA: ${usaJobs.length} vagas`);
+    console.log(`  India: ${indiaJobs.length} vagas`);
+    console.log(`  Portugal: ${portugalJobs.length} vagas`);
+    console.log(`  Japan: ${japanJobs.length} vagas`);
+    console.log(`  Australia: ${australiaJobs.length} vagas`);
+    console.log(`  New Zealand: ${newZealandJobs.length} vagas`);
+    console.log(`  Italy: ${italyJobs.length} vagas`);
+    console.log(`  Canada: ${canadaJobs.length} vagas`);
 
     // Se não conseguiu nenhuma vaga, usar mock
     if (allJobs.length === 0) {
@@ -370,5 +476,13 @@ module.exports = {
     scrapeRemoteOK,
     scrapeRemotive,
     scrapeJobicy,
-    scrapeArbeitnow
+    scrapeArbeitnow,
+    scrapeUSA,
+    scrapeIndia,
+    scrapePortugal,
+    scrapeJapan,
+    scrapeAustralia,
+    scrapeNewZealand,
+    scrapeItaly,
+    scrapeCanada
 };
