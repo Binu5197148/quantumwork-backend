@@ -88,20 +88,38 @@ async function scrapeWorkingNomads() {
     try {
         console.log('🔍 Scraping Working Nomads...');
         const data = await fetchJson('https://www.workingnomads.com/api/jobs.json');
-        const jobs = data.jobs || data;
+        
+        // A API retorna array direto ou objeto com jobs
+        let jobs = [];
+        if (Array.isArray(data)) {
+            jobs = data;
+        } else if (data && Array.isArray(data.jobs)) {
+            jobs = data.jobs;
+        } else if (data && typeof data === 'object') {
+            // Tentar encontrar array de jobs em qualquer propriedade
+            const possibleArrays = Object.values(data).filter(v => Array.isArray(v));
+            if (possibleArrays.length > 0) {
+                jobs = possibleArrays[0];
+            }
+        }
+
+        if (!Array.isArray(jobs) || jobs.length === 0) {
+            console.log('⚠️ Working Nomads: Nenhuma vaga encontrada ou formato inesperado');
+            return [];
+        }
 
         return jobs.slice(0, 15).map(job => ({
-            title: job.title || job.position,
+            title: job.title || job.position || 'Untitled',
             company: job.company_name || job.company || 'Unknown',
-            description: job.description ? job.description.replace(/<[^>]*>/g, '').substring(0, 500) : '',
-            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
-            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
+            description: job.description ? String(job.description).replace(/<[^>]*>/g, '').substring(0, 500) : '',
+            requirements: JSON.stringify(extractSkills(String(job.title || '') + ' ' + String(job.description || ''))),
+            skills_required: JSON.stringify(extractSkills(String(job.title || '') + ' ' + String(job.description || ''))),
             salary: job.salary || 'Not specified',
             location: job.location || 'Remote',
             type: job.type || 'full-time',
             source: 'Working Nomads',
             source_url: job.apply_url || job.url || 'https://www.workingnomads.com'
-        }));
+        })).filter(job => job.title && job.title !== 'Untitled');
     } catch (error) {
         console.error('❌ Erro no Working Nomads:', error.message);
         return [];
@@ -350,20 +368,44 @@ async function scrapeHimalayas() {
     try {
         console.log('🔍 Scraping Himalayas...');
         const data = await fetchJson('https://himalayas.app/api/jobs?limit=20');
-        const jobs = data.jobs || [];
+        
+        // Himalayas retorna objeto com propriedade 'jobs'
+        let jobs = [];
+        if (data && Array.isArray(data.jobs)) {
+            jobs = data.jobs;
+        } else if (Array.isArray(data)) {
+            jobs = data;
+        } else if (data && typeof data === 'object') {
+            // Tentar encontrar array em qualquer propriedade
+            const arrays = Object.values(data).filter(v => Array.isArray(v));
+            if (arrays.length > 0) jobs = arrays[0];
+        }
 
-        return jobs.map(job => ({
-            title: job.title,
-            company: job.company?.name || 'Unknown',
-            description: job.excerpt || job.description?.substring(0, 500) || '',
-            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.excerpt || ''))),
-            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.excerpt || ''))),
-            salary: job.salary || 'Not specified',
-            location: job.location?.name || 'Remote',
-            type: job.employmentType || 'full-time',
-            source: 'Himalayas',
-            source_url: job.applyUrl || job.url || 'https://himalayas.app'
-        }));
+        if (!Array.isArray(jobs) || jobs.length === 0) {
+            console.log('⚠️ Himalayas: Nenhuma vaga encontrada');
+            return [];
+        }
+
+        return jobs.slice(0, 20).map(job => {
+            const title = job.title || 'Untitled';
+            const companyName = job.company?.name || job.companyName || job.company || 'Unknown';
+            const description = job.excerpt || job.description || job.snippet || '';
+            const location = job.location?.name || job.location || job.candidateRequiredLocation || 'Remote';
+            const url = job.applyUrl || job.url || job.link || 'https://himalayas.app';
+            
+            return {
+                title: title,
+                company: companyName,
+                description: String(description).substring(0, 500),
+                requirements: JSON.stringify(extractSkills(String(title) + ' ' + String(description))),
+                skills_required: JSON.stringify(extractSkills(String(title) + ' ' + String(description))),
+                salary: job.salary || job.annualSalary || 'Not specified',
+                location: location,
+                type: job.employmentType || job.jobType || 'full-time',
+                source: 'Himalayas',
+                source_url: url
+            };
+        }).filter(job => job.title !== 'Untitled');
     } catch (error) {
         console.error('❌ Erro no Himalayas:', error.message);
         return [];
