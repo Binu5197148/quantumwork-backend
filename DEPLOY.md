@@ -1,6 +1,6 @@
 # 🚀 QuantumWork.co - Deploy Guide
 
-## Status do Backend: ✅ COMPLETO
+## Status do Backend: ✅ COMPLETO (v1.3.0)
 
 ### Funcionalidades Implementadas
 - ✅ API REST completa (candidatos, vagas, emails)
@@ -10,6 +10,46 @@
 - ✅ Matching automático candidato/vaga
 - ✅ Painel administrativo
 - ✅ Export CSV
+- ✅ Rate limiting (proteção contra spam)
+- ✅ Helmet (headers de segurança)
+- ✅ Docker support
+- ✅ Health check avançado
+
+---
+
+## Deploy com Docker (Qualquer Plataforma)
+
+### Opção 1: Docker Compose (Mais Fácil)
+```bash
+cd /Users/pennywise/.openclaw/workspace/quantumwork_site
+
+# Criar .env
+cp .env.example .env
+# Editar .env com suas variáveis
+
+# Subir serviço
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Parar
+docker-compose down
+```
+
+### Opção 2: Build Manual
+```bash
+# Build da imagem
+docker build -t quantumwork-api .
+
+# Rodar container
+docker run -d \
+  -p 3000:3000 \
+  -v $(pwd)/data:/app/data \
+  -e NODE_ENV=production \
+  --name quantumwork-api \
+  quantumwork-api
+```
 
 ---
 

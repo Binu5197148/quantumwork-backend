@@ -1,6 +1,6 @@
 {
   "name": "quantumwork-backend",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Backend API para Quantum Work - Agência de Empregos Remotos",
   "main": "api/server.js",
   "scripts": {
@@ -11,12 +11,14 @@
     "scraper": "node scripts/update-jobs.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "sql.js": "^1.8.0",
+    "csv-writer": "^1.6.0",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "nodemailer": "^6.9.7",
-    "csv-writer": "^1.6.0"
+    "sql.js": "^1.8.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -24,7 +26,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["jobs", "remote", "api", "sqlite"],
+  "keywords": [
+    "jobs",
+    "remote",
+    "api",
+    "sqlite"
+  ],
   "author": "Quantum Work",
   "license": "MIT"
 }

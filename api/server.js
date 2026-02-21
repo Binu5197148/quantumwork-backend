@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { run, get, all, initDatabase } = require('./database');
 const { sendEmail, sendNewsletterToAll } = require('./email');
 const { runAllScrapers, saveJobsToDatabase, findMatches } = require('./scraper');
@@ -9,9 +11,37 @@ const { runAllScrapers, saveJobsToDatabase, findMatches } = require('./scraper')
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Security middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // limite de 100 requisições por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Muitas requisições. Tente novamente mais tarde.' }
+});
+
+// Rate limit específico para criação de candidatos (mais restritivo)
+const createCandidateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 10, // máximo 10 cadastros por IP
+    message: { success: false, error: 'Limite de cadastros atingido. Tente novamente em 1 hora.' }
+});
+
+app.use(limiter);
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
 
@@ -28,8 +58,8 @@ app.use(async (req, res, next) => {
 
 // ============ CANDIDATES API ============
 
-// Criar candidato
-app.post('/api/candidates', async (req, res) => {
+// Criar candidato (com rate limit)
+app.post('/api/candidates', createCandidateLimiter, async (req, res) => {
     try {
         const {
             full_name, email, phone, location, linkedin, portfolio,
@@ -361,13 +391,32 @@ app.get('/api/candidates/export/csv', async (req, res) => {
 
 // ============ HEALTH CHECK ============
 
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        version: '1.2.0',
-        features: ['candidates', 'emails', 'export', 'stats', 'jobs', 'scraper']
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        // Verificar conexão com banco
+        const dbStatus = await get('SELECT 1 as test');
+        const candidateCount = await get('SELECT COUNT(*) as count FROM candidates');
+        const jobCount = await get('SELECT COUNT(*) as count FROM jobs');
+        
+        res.json({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            version: '1.3.0',
+            environment: process.env.NODE_ENV || 'development',
+            database: {
+                connected: !!dbStatus,
+                candidates: candidateCount.count,
+                jobs: jobCount.count
+            },
+            features: ['candidates', 'emails', 'export', 'stats', 'jobs', 'scraper', 'rate-limit', 'helmet']
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: 'Database connection failed'
+        });
+    }
 });
 
 // ============ SCRAPER API ============
