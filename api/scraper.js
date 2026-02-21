@@ -228,18 +228,19 @@ async function scrapeUSA() {
 
 /**
  * Scraper de vagas na Índia
+ * Nota: Jobicy pode não ter filtro específico para Índia
  */
 async function scrapeIndia() {
-    // Jobicy pode usar 'in' ou 'ind' para Índia
-    try {
-        const jobs = await scrapeJobicy('india');
-        if (jobs.length === 0) {
-            return await scrapeJobicy('in');
-        }
-        return jobs;
-    } catch (e) {
-        return await scrapeJobicy('in').catch(() => []);
+    // Tenta várias variações
+    const codes = ['india', 'in', 'ind'];
+    for (const code of codes) {
+        try {
+            const jobs = await scrapeJobicy(code);
+            if (jobs.length > 0) return jobs;
+        } catch (e) {}
     }
+    console.log('⚠️ Jobicy: Nenhuma vaga encontrada para Índia (filtro não disponível)');
+    return [];
 }
 
 /**
