@@ -213,14 +213,33 @@ function getMockJobs() {
  * Scraper de vagas nos EUA
  */
 async function scrapeUSA() {
-    return scrapeJobicy('united-states');
+    // Jobicy usa 'usa' ou 'us' para Estados Unidos
+    try {
+        const jobs = await scrapeJobicy('usa');
+        if (jobs.length === 0) {
+            // Tenta alternativa
+            return await scrapeJobicy('us');
+        }
+        return jobs;
+    } catch (e) {
+        return await scrapeJobicy('us').catch(() => []);
+    }
 }
 
 /**
  * Scraper de vagas na Índia
  */
 async function scrapeIndia() {
-    return scrapeJobicy('india');
+    // Jobicy pode usar 'in' ou 'ind' para Índia
+    try {
+        const jobs = await scrapeJobicy('india');
+        if (jobs.length === 0) {
+            return await scrapeJobicy('in');
+        }
+        return jobs;
+    } catch (e) {
+        return await scrapeJobicy('in').catch(() => []);
+    }
 }
 
 /**
