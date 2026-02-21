@@ -1,10 +1,11 @@
 /**
  * Job Scraper - Coleta vagas de sites de emprego remoto
  * 
- * Fontes suportadas:
- * - RemoteOK
- * - We Work Remotely
- * - Working Nomads
+ * Fontes funcionando:
+ * - RemoteOK (API JSON)
+ * - Remotive (API JSON)
+ * - Jobicy (API JSON)
+ * - Arbeitnow (API JSON)
  */
 
 const https = require('https');
@@ -60,7 +61,6 @@ async function scrapeRemoteOK() {
         console.log('🔍 Scraping RemoteOK...');
         const jobs = await fetchJson('https://remoteok.com/api?tags=dev');
         
-        // Filtrar apenas vagas de tecnologia/desenvolvimento
         const techJobs = jobs.filter(job => job && job.id && job.position).slice(0, 20);
 
         return techJobs.map(job => ({
@@ -82,53 +82,91 @@ async function scrapeRemoteOK() {
 }
 
 /**
- * Scraper do Working Nomads (JSON Feed)
+ * Scraper do Remotive (API pública)
+ * https://remotive.com/api/remote-jobs
  */
-async function scrapeWorkingNomads() {
+async function scrapeRemotive() {
     try {
-        console.log('🔍 Scraping Working Nomads...');
-        const data = await fetchJson('https://www.workingnomads.com/api/jobs.json');
-        
-        // A API retorna array direto ou objeto com jobs
-        let jobs = [];
-        if (Array.isArray(data)) {
-            jobs = data;
-        } else if (data && Array.isArray(data.jobs)) {
-            jobs = data.jobs;
-        } else if (data && typeof data === 'object') {
-            // Tentar encontrar array de jobs em qualquer propriedade
-            const possibleArrays = Object.values(data).filter(v => Array.isArray(v));
-            if (possibleArrays.length > 0) {
-                jobs = possibleArrays[0];
-            }
-        }
+        console.log('🔍 Scraping Remotive...');
+        const data = await fetchJson('https://remotive.com/api/remote-jobs');
+        const jobs = data.jobs || [];
 
-        if (!Array.isArray(jobs) || jobs.length === 0) {
-            console.log('⚠️ Working Nomads: Nenhuma vaga encontrada ou formato inesperado');
-            return [];
-        }
-
-        return jobs.slice(0, 15).map(job => ({
-            title: job.title || job.position || 'Untitled',
-            company: job.company_name || job.company || 'Unknown',
-            description: job.description ? String(job.description).replace(/<[^>]*>/g, '').substring(0, 500) : '',
-            requirements: JSON.stringify(extractSkills(String(job.title || '') + ' ' + String(job.description || ''))),
-            skills_required: JSON.stringify(extractSkills(String(job.title || '') + ' ' + String(job.description || ''))),
+        return jobs.slice(0, 20).map(job => ({
+            title: job.title,
+            company: job.company_name || 'Unknown',
+            description: job.description ? job.description.replace(/<[^>]*>/g, '').substring(0, 500) : '',
+            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
+            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
             salary: job.salary || 'Not specified',
-            location: job.location || 'Remote',
-            type: job.type || 'full-time',
-            source: 'Working Nomads',
-            source_url: job.apply_url || job.url || 'https://www.workingnomads.com'
-        })).filter(job => job.title && job.title !== 'Untitled');
+            location: job.candidate_required_location || 'Remote',
+            type: job.job_type || 'full-time',
+            source: 'Remotive',
+            source_url: job.url || 'https://remotive.com'
+        }));
     } catch (error) {
-        console.error('❌ Erro no Working Nomads:', error.message);
+        console.error('❌ Erro no Remotive:', error.message);
+        return [];
+    }
+}
+
+/**
+ * Scraper do Jobicy (API pública)
+ * https://jobicy.com/api/v2/remote-jobs
+ */
+async function scrapeJobicy() {
+    try {
+        console.log('🔍 Scraping Jobicy...');
+        const data = await fetchJson('https://jobicy.com/api/v2/remote-jobs?count=20');
+        const jobs = data.jobs || [];
+
+        return jobs.map(job => ({
+            title: job.jobTitle,
+            company: job.companyName || 'Unknown',
+            description: job.jobDescription?.substring(0, 500) || '',
+            requirements: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
+            skills_required: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
+            salary: job.annualSalary || 'Not specified',
+            location: job.jobGeo || 'Remote',
+            type: job.jobType || 'full-time',
+            source: 'Jobicy',
+            source_url: job.url || 'https://jobicy.com'
+        }));
+    } catch (error) {
+        console.error('❌ Erro no Jobicy:', error.message);
+        return [];
+    }
+}
+
+/**
+ * Scraper do Arbeitnow (API pública)
+ * https://www.arbeitnow.com/api/job-board-api
+ */
+async function scrapeArbeitnow() {
+    try {
+        console.log('🔍 Scraping Arbeitnow...');
+        const data = await fetchJson('https://www.arbeitnow.com/api/job-board-api');
+        const jobs = data.data || [];
+
+        return jobs.slice(0, 20).map(job => ({
+            title: job.title,
+            company: job.company_name || 'Unknown',
+            description: job.description?.substring(0, 500) || '',
+            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
+            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
+            salary: 'Not specified',
+            location: job.location || 'Remote',
+            type: job.remote === true ? 'remote' : 'full-time',
+            source: 'Arbeitnow',
+            source_url: job.url || 'https://www.arbeitnow.com'
+        }));
+    } catch (error) {
+        console.error('❌ Erro no Arbeitnow:', error.message);
         return [];
     }
 }
 
 /**
  * Vagas mockadas para demonstração
- * (Usar quando APIs estão indisponíveis)
  */
 function getMockJobs() {
     const companies = ['TechCorp', 'StartupXYZ', 'GlobalDevs', 'RemoteFirst', 'CloudNative'];
@@ -181,28 +219,22 @@ async function runAllScrapers(useMock = false) {
 
     const allJobs = [];
 
-    // Executar TODOS os scrapers em paralelo (Tier 1 + originais)
+    // Executar scrapers em paralelo (apenas os que funcionam)
     const [
         remoteOKJobs, 
-        workingNomadsJobs,
         remotiveJobs,
-        himalayasJobs,
         jobicyJobs,
         arbeitnowJobs
     ] = await Promise.all([
         scrapeRemoteOK().catch(err => { console.error('RemoteOK erro:', err.message); return []; }),
-        scrapeWorkingNomads().catch(err => { console.error('WorkingNomads erro:', err.message); return []; }),
         scrapeRemotive().catch(err => { console.error('Remotive erro:', err.message); return []; }),
-        scrapeHimalayas().catch(err => { console.error('Himalayas erro:', err.message); return []; }),
         scrapeJobicy().catch(err => { console.error('Jobicy erro:', err.message); return []; }),
         scrapeArbeitnow().catch(err => { console.error('Arbeitnow erro:', err.message); return []; })
     ]);
 
     allJobs.push(
         ...remoteOKJobs, 
-        ...workingNomadsJobs,
         ...remotiveJobs,
-        ...himalayasJobs,
         ...jobicyJobs,
         ...arbeitnowJobs
     );
@@ -210,9 +242,7 @@ async function runAllScrapers(useMock = false) {
     // Log de resultados por fonte
     console.log('📊 Resultados por fonte:');
     console.log(`  RemoteOK: ${remoteOKJobs.length} vagas`);
-    console.log(`  Working Nomads: ${workingNomadsJobs.length} vagas`);
     console.log(`  Remotive: ${remotiveJobs.length} vagas`);
-    console.log(`  Himalayas: ${himalayasJobs.length} vagas`);
     console.log(`  Jobicy: ${jobicyJobs.length} vagas`);
     console.log(`  Arbeitnow: ${arbeitnowJobs.length} vagas`);
 
@@ -332,151 +362,13 @@ async function findMatches(db) {
     return matches.sort((a, b) => b.skillMatchPercentage - a.skillMatchPercentage);
 }
 
-/**
- * Scraper do Remotive (API pública)
- * https://remotive.com/api/remote-jobs
- */
-async function scrapeRemotive() {
-    try {
-        console.log('🔍 Scraping Remotive...');
-        const data = await fetchJson('https://remotive.com/api/remote-jobs');
-        const jobs = data.jobs || [];
-
-        return jobs.slice(0, 20).map(job => ({
-            title: job.title,
-            company: job.company_name || 'Unknown',
-            description: job.description ? job.description.replace(/<[^>]*>/g, '').substring(0, 500) : '',
-            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
-            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
-            salary: job.salary || 'Not specified',
-            location: job.candidate_required_location || 'Remote',
-            type: job.job_type || 'full-time',
-            source: 'Remotive',
-            source_url: job.url || 'https://remotive.com'
-        }));
-    } catch (error) {
-        console.error('❌ Erro no Remotive:', error.message);
-        return [];
-    }
-}
-
-/**
- * Scraper do Himalayas (API pública)
- * https://himalayas.app/api/jobs
- */
-async function scrapeHimalayas() {
-    try {
-        console.log('🔍 Scraping Himalayas...');
-        const data = await fetchJson('https://himalayas.app/api/jobs?limit=20');
-        
-        // Himalayas retorna objeto com propriedade 'jobs'
-        let jobs = [];
-        if (data && Array.isArray(data.jobs)) {
-            jobs = data.jobs;
-        } else if (Array.isArray(data)) {
-            jobs = data;
-        } else if (data && typeof data === 'object') {
-            // Tentar encontrar array em qualquer propriedade
-            const arrays = Object.values(data).filter(v => Array.isArray(v));
-            if (arrays.length > 0) jobs = arrays[0];
-        }
-
-        if (!Array.isArray(jobs) || jobs.length === 0) {
-            console.log('⚠️ Himalayas: Nenhuma vaga encontrada');
-            return [];
-        }
-
-        return jobs.slice(0, 20).map(job => {
-            const title = job.title || 'Untitled';
-            const companyName = job.company?.name || job.companyName || job.company || 'Unknown';
-            const description = job.excerpt || job.description || job.snippet || '';
-            const location = job.location?.name || job.location || job.candidateRequiredLocation || 'Remote';
-            const url = job.applyUrl || job.url || job.link || 'https://himalayas.app';
-            
-            return {
-                title: title,
-                company: companyName,
-                description: String(description).substring(0, 500),
-                requirements: JSON.stringify(extractSkills(String(title) + ' ' + String(description))),
-                skills_required: JSON.stringify(extractSkills(String(title) + ' ' + String(description))),
-                salary: job.salary || job.annualSalary || 'Not specified',
-                location: location,
-                type: job.employmentType || job.jobType || 'full-time',
-                source: 'Himalayas',
-                source_url: url
-            };
-        }).filter(job => job.title !== 'Untitled');
-    } catch (error) {
-        console.error('❌ Erro no Himalayas:', error.message);
-        return [];
-    }
-}
-
-/**
- * Scraper do Jobicy (API pública)
- * https://jobicy.com/api/v2/remote-jobs
- */
-async function scrapeJobicy() {
-    try {
-        console.log('🔍 Scraping Jobicy...');
-        const data = await fetchJson('https://jobicy.com/api/v2/remote-jobs?count=20');
-        const jobs = data.jobs || [];
-
-        return jobs.map(job => ({
-            title: job.jobTitle,
-            company: job.companyName || 'Unknown',
-            description: job.jobDescription?.substring(0, 500) || '',
-            requirements: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
-            skills_required: JSON.stringify(extractSkills((job.jobTitle || '') + ' ' + (job.jobDescription || ''))),
-            salary: job.annualSalary || 'Not specified',
-            location: job.jobGeo || 'Remote',
-            type: job.jobType || 'full-time',
-            source: 'Jobicy',
-            source_url: job.url || 'https://jobicy.com'
-        }));
-    } catch (error) {
-        console.error('❌ Erro no Jobicy:', error.message);
-        return [];
-    }
-}
-
-/**
- * Scraper do Arbeitnow (API pública)
- * https://www.arbeitnow.com/api/job-board-api
- */
-async function scrapeArbeitnow() {
-    try {
-        console.log('🔍 Scraping Arbeitnow...');
-        const data = await fetchJson('https://www.arbeitnow.com/api/job-board-api');
-        const jobs = data.data || [];
-
-        return jobs.slice(0, 20).map(job => ({
-            title: job.title,
-            company: job.company_name || 'Unknown',
-            description: job.description?.substring(0, 500) || '',
-            requirements: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
-            skills_required: JSON.stringify(extractSkills((job.title || '') + ' ' + (job.description || ''))),
-            salary: 'Not specified',
-            location: job.location || 'Remote',
-            type: job.remote === true ? 'remote' : 'full-time',
-            source: 'Arbeitnow',
-            source_url: job.url || 'https://www.arbeitnow.com'
-        }));
-    } catch (error) {
-        console.error('❌ Erro no Arbeitnow:', error.message);
-        return [];
-    }
-}
-
 module.exports = {
     runAllScrapers,
     saveJobsToDatabase,
     findMatches,
     getMockJobs,
     scrapeRemoteOK,
-    scrapeWorkingNomads,
     scrapeRemotive,
-    scrapeHimalayas,
     scrapeJobicy,
     scrapeArbeitnow
 };
